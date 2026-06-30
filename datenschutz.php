@@ -16,17 +16,19 @@ require_once __DIR__ . '/config/config.php';
     <a class="back-link" href="/index.php">Zurück zur Startseite</a>
     <section class="legal-card">
       <h1>Datenschutzerklärung</h1>
-      <h3>Datenschutzhinweise für diese private Projektseite</h3>
+      <h3>Muster-Datenschutzhinweise für eine private Projektseite</h3>
+
+      <p>Diese Datei ist ein Beispiel. Ersetzen Sie die Platzhalter vor einer Veröffentlichung durch eigene Angaben und prüfen Sie, ob der Text zur konkreten Website passt.</p>
 
       <h4>1. Verantwortliche Person</h4>
       <p>Diese Datenschutzerklärung gilt für die Datenverarbeitung durch:</p>
       <p>
-        Nikolay Stoykow<br />
-        Lutherstraße 29<br />
-        02826 Görlitz<br />
+        Vorname Nachname<br />
+        Straße Hausnummer<br />
+        PLZ Ort<br />
         Deutschland
       </p>
-      <p>E-Mail: <a href="mailto:kontakt2026@stoykow.de">kontakt2026@stoykow.de</a></p>
+      <p>E-Mail: <a href="mailto:mail@example.test">mail@example.test</a></p>
 
       <h4>2. Private Nutzung und Zweck der Website</h4>
       <p>Diese Website ist ein privates, nicht gewerbliches Projekt. Sie dient der Bereitstellung einer persönlichen Startseite mit gespeicherten Links, Profilen und Einstellungen.</p>
@@ -81,7 +83,7 @@ require_once __DIR__ . '/config/config.php';
 
       <h4>11. Widerspruchsrecht</h4>
       <p>Sofern personenbezogene Daten auf Grundlage von berechtigten Interessen gemäß Art. 6 Abs. 1 lit. f DSGVO verarbeitet werden, besteht gemäß Art. 21 DSGVO das Recht, Widerspruch gegen die Verarbeitung einzulegen.</p>
-      <p>Dafür genügt eine E-Mail an: <a href="mailto:kontakt2026@stoykow.de">kontakt2026@stoykow.de</a></p>
+      <p>Dafür genügt eine E-Mail an: <a href="mailto:mail@example.test">mail@example.test</a></p>
     </section>
   </main>
 </body>

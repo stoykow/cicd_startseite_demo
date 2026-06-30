@@ -10,6 +10,7 @@ Das Projekt dient gleichzeitig als reales Deployment-Projekt und als CI/CD-Unter
 - `login.php`: Anmeldung und Registrierung
 - `impressum.php` und `datenschutz.php`: öffentliche Pflichtseiten
 - `config/`: Konfiguration, Bootstrap, UI- und Aktionslogik
+- `assets/icons/`: lokale, private Icon-Dateien, nicht im Repository
 - `assets/uploads/icons/`: hochgeladene Icon-Dateien
 - `assets/pictures/`: Bilder für die README-Dokumentation
 - `docker-compose.yml`: PHP/Apache, MariaDB und phpMyAdmin
@@ -59,7 +60,7 @@ Wichtige Variablen:
 
 Echte Geheimnisse gehören in GitLab CI/CD Variables, GitHub Secrets oder eine lokale `.env`, nicht ins Repository.
 
-SVG-Icons werden nicht mehr aus dem Projekt in die Datenbank importiert. Beim Bootstrap entfernt die App alte SVG-Icon-Varianten aus `icon_variants`; hochgeladene Icons sind auf PNG, JPG und WebP begrenzt. Lokale private Icons können in `assets/icons/` liegen; der Ordner ist per `.gitignore` ausgeblendet und wird nicht ins Demo synchronisiert.
+Lokale SVG-Icons können in `assets/icons/` liegen. Der Ordner ist per `.gitignore` ausgeblendet und wird nicht ins Demo synchronisiert. Wenn lokal SVG-Dateien vorhanden sind, importiert `config/bootstrap.php` sie beim Start in die Datenbanktabelle `icon_variants`. In frisch geklonten öffentlichen Repos ist der Ordner leer; Teilnehmende müssen eigene Icons ergänzen oder Icons über die Oberfläche hochladen.
 
 ## GitLab CI/CD
 
@@ -336,8 +337,8 @@ GitHub:
 
 ## Rechtliche Seiten
 
-`impressum.php` und `datenschutz.php` sind für dieses konkrete private Projekt ausgefüllt. Für andere Projekte müssen die Angaben fachlich und rechtlich neu geprüft werden.
+`impressum.php` und `datenschutz.php` enthalten bewusst nur Mustertexte mit Platzhaltern. Persönliche oder projektspezifische Angaben gehören nicht ins öffentliche Demo-Repository und müssen vor einer echten Veröffentlichung fachlich und rechtlich ersetzt werden.
 
 ## Quellen und Hinweise
 
-Verwendete Logos und Icons dienen als lokale Assets. Marken- und Urheberrechte verbleiben bei den jeweiligen Inhabern.
+Lokale Icons in `assets/icons/` sind private Arbeitsdateien und werden nicht veröffentlicht. Für eigene Logos und Icons müssen Marken- und Urheberrechte jeweils selbst geprüft werden.

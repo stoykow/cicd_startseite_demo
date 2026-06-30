@@ -17,18 +17,18 @@ require_once __DIR__ . '/config/config.php';
     <section class="legal-card">
       <h1>Impressum</h1>
 
-      <h4>Private Projektseite</h4>
-      <p>Diese Website ist ein privates, nicht gewerbliches Projekt.</p>
+      <h4>Muster für eine private Projektseite</h4>
+      <p>Diese Datei ist ein Beispiel. Ersetzen Sie die Platzhalter vor einer Veröffentlichung durch eigene Angaben.</p>
 
       <h4>Verantwortlich für den Inhalt</h4>
       <p>
-        Nikolay Stoykow<br />
-        Lutherstraße 29<br />
-        02826 Görlitz
+        Vorname Nachname<br />
+        Straße Hausnummer<br />
+        PLZ Ort
       </p>
 
       <h5>Kontakt</h5>
-      <p>E-Mail: <a href="mailto:kontakt2026@stoykow.de">kontakt2026@stoykow.de</a></p>
+      <p>E-Mail: <a href="mailto:mail@example.test">mail@example.test</a></p>
 
       <hr />
 

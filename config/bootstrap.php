@@ -229,34 +229,100 @@ function generateOpaqueToken(int $bytes = 24): string
     return rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '=');
 }
 
-function removeDatabaseSvgIcons(PDO $pdo): void
+function iconLabelFromFilename(string $filename): string
 {
-    $variantIds = $pdo->query(
-        'SELECT id
-         FROM icon_variants
-         WHERE asset_type = "svg"
-            OR svg_markup IS NOT NULL
-            OR source_path LIKE "assets/icons/%.svg"'
-    )->fetchAll(PDO::FETCH_COLUMN);
+    $stem = pathinfo($filename, PATHINFO_FILENAME);
+    $label = str_replace(['-', '_'], ' ', $stem);
+    return ucwords($label);
+}
 
-    if ($variantIds === []) {
+function normalizeSvgMarkup(string $svgMarkup): string
+{
+    $svgMarkup = preg_replace('/<\?xml[^>]*\?>/i', '', $svgMarkup) ?? $svgMarkup;
+    $svgMarkup = preg_replace('/<!DOCTYPE[^>]*>/i', '', $svgMarkup) ?? $svgMarkup;
+    $svgMarkup = trim($svgMarkup);
+
+    if (str_contains($svgMarkup, '<svg') && !preg_match('/viewBox\s*=\s*"[^"]+"/i', $svgMarkup)) {
+        if (preg_match('/width\s*=\s*"([0-9.]+)px?"/i', $svgMarkup, $widthMatch)
+            && preg_match('/height\s*=\s*"([0-9.]+)px?"/i', $svgMarkup, $heightMatch)) {
+            $viewBox = sprintf('viewBox="0 0 %s %s"', $widthMatch[1], $heightMatch[1]);
+            $svgMarkup = preg_replace('/<svg\b/i', '<svg ' . $viewBox, $svgMarkup, 1) ?? $svgMarkup;
+        }
+    }
+
+    return $svgMarkup;
+}
+
+function ensureIconLibrary(PDO $pdo): void
+{
+    $iconFiles = glob(APP_BASE_PATH . '/assets/icons/*.svg');
+    if ($iconFiles === false) {
         return;
     }
 
-    $placeholders = implode(',', array_fill(0, count($variantIds), '?'));
-
-    $clearLinks = $pdo->prepare("UPDATE links SET icon_variant_id = NULL WHERE icon_variant_id IN ($placeholders)");
-    $clearLinks->execute($variantIds);
-
-    $deleteVariants = $pdo->prepare("DELETE FROM icon_variants WHERE id IN ($placeholders)");
-    $deleteVariants->execute($variantIds);
-
-    $pdo->exec(
-        'DELETE s
-         FROM icon_sets s
-         LEFT JOIN icon_variants v ON v.icon_set_id = s.id
-         WHERE v.id IS NULL'
+    $insertSet = $pdo->prepare(
+        'INSERT INTO icon_sets (slug, label)
+         VALUES (:slug, :label)
+         ON DUPLICATE KEY UPDATE label = VALUES(label)'
     );
+    $findSet = $pdo->prepare('SELECT id FROM icon_sets WHERE slug = :slug LIMIT 1');
+    $insertVariant = $pdo->prepare(
+        'INSERT INTO icon_variants (icon_set_id, variant_slug, variant_label, asset_type, svg_markup, asset_path, asset_blob, mime_type, source_path, sort_order)
+         VALUES (:icon_set_id, :variant_slug, :variant_label, :asset_type, :svg_markup, :asset_path, :asset_blob, :mime_type, :source_path, :sort_order)
+         ON DUPLICATE KEY UPDATE
+             variant_label = VALUES(variant_label),
+             asset_type = VALUES(asset_type),
+             svg_markup = VALUES(svg_markup),
+             asset_path = VALUES(asset_path),
+             asset_blob = VALUES(asset_blob),
+             mime_type = VALUES(mime_type),
+             source_path = VALUES(source_path)'
+    );
+
+    $sortOrder = 10;
+    foreach ($iconFiles as $iconFile) {
+        $filename = basename($iconFile);
+        $slug = slugify(pathinfo($filename, PATHINFO_FILENAME));
+        $label = iconLabelFromFilename($filename);
+        $svgMarkup = file_get_contents($iconFile);
+        if ($svgMarkup === false) {
+            continue;
+        }
+        $svgMarkup = normalizeSvgMarkup($svgMarkup);
+
+        $insertSet->execute([
+            ':slug' => $slug,
+            ':label' => $label,
+        ]);
+
+        $findSet->execute([':slug' => $slug]);
+        $iconSetId = (int) $findSet->fetchColumn();
+        if ($iconSetId <= 0) {
+            continue;
+        }
+
+        $insertVariant->execute([
+            ':icon_set_id' => $iconSetId,
+            ':variant_slug' => 'default',
+            ':variant_label' => $label,
+            ':asset_type' => 'svg',
+            ':svg_markup' => $svgMarkup,
+            ':asset_path' => null,
+            ':asset_blob' => null,
+            ':mime_type' => 'image/svg+xml',
+            ':source_path' => 'assets/icons/' . $filename,
+            ':sort_order' => $sortOrder,
+        ]);
+
+        $sortOrder += 10;
+    }
+}
+
+function iconVariantIdBySourcePath(PDO $pdo, string $sourcePath): int
+{
+    $statement = $pdo->prepare('SELECT id FROM icon_variants WHERE source_path = :source_path LIMIT 1');
+    $statement->execute([':source_path' => $sourcePath]);
+    return (int) $statement->fetchColumn();
 }
 
 function createUploadedIconVariant(PDO $pdo, string $label, array $upload, ?string &$error = null): int
@@ -277,52 +343,56 @@ function createUploadedIconVariant(PDO $pdo, string $label, array $upload, ?stri
     }
 
     $isSvg = $extension === 'svg' || str_contains(strtolower($fileContents), '<svg');
-    if ($isSvg) {
-        $error = 'SVG-Uploads sind deaktiviert. Bitte PNG, JPG oder WebP verwenden.';
-        return 0;
-    }
-
-    $assetType = 'file';
+    $assetType = $isSvg ? 'svg' : 'file';
     $assetPath = null;
     $assetBlob = null;
     $svgMarkup = null;
 
-    $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
-    if (!in_array($extension, $allowedExtensions, true)) {
-        $error = 'Dateityp nicht erlaubt: ' . ($extension !== '' ? $extension : 'unbekannt');
-        return 0;
-    }
-
-    $uploadDir = APP_BASE_PATH . '/assets/uploads/icons';
-    if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
-        $error = 'Upload-Ordner konnte nicht erstellt werden: ' . $uploadDir;
-        return 0;
-    }
-
-    $filename = slugify($label !== '' ? $label : 'custom-icon') . '-' . bin2hex(random_bytes(6)) . '.' . $extension;
-    $targetPath = $uploadDir . '/' . $filename;
-    $stored = @move_uploaded_file($tmpPath, $targetPath);
-    if (!$stored) {
-        $stored = @copy($tmpPath, $targetPath);
-    }
-    if (!$stored) {
-        $stored = @file_put_contents($targetPath, $fileContents) !== false;
-    }
-    if (!$stored) {
-        $assetType = 'blob';
-        $assetBlob = $fileContents;
-        $assetPath = null;
+    if ($isSvg) {
+        $svgMarkup = normalizeSvgMarkup($fileContents);
+        $mimeType = 'image/svg+xml';
+        if (!str_contains(strtolower($svgMarkup), '<svg')) {
+            $error = 'Datei wurde als SVG erkannt, enthält aber kein gültiges <svg>.';
+            return 0;
+        }
     } else {
-        @chmod($targetPath, 0644);
-        $assetPath = 'assets/uploads/icons/' . $filename;
-    }
-    if ($mimeType === '') {
-        $mimeType = match ($extension) {
-            'png' => 'image/png',
-            'jpg', 'jpeg' => 'image/jpeg',
-            'webp' => 'image/webp',
-            default => 'application/octet-stream',
-        };
+        $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
+        if (!in_array($extension, $allowedExtensions, true)) {
+            $error = 'Dateityp nicht erlaubt: ' . ($extension !== '' ? $extension : 'unbekannt');
+            return 0;
+        }
+
+        $uploadDir = APP_BASE_PATH . '/assets/uploads/icons';
+        if (!is_dir($uploadDir) && !@mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+            $error = 'Upload-Ordner konnte nicht erstellt werden: ' . $uploadDir;
+            return 0;
+        }
+
+        $filename = slugify($label !== '' ? $label : 'custom-icon') . '-' . bin2hex(random_bytes(6)) . '.' . $extension;
+        $targetPath = $uploadDir . '/' . $filename;
+        $stored = @move_uploaded_file($tmpPath, $targetPath);
+        if (!$stored) {
+            $stored = @copy($tmpPath, $targetPath);
+        }
+        if (!$stored) {
+            $stored = @file_put_contents($targetPath, $fileContents) !== false;
+        }
+        if (!$stored) {
+            $assetType = 'blob';
+            $assetBlob = $fileContents;
+            $assetPath = null;
+        } else {
+            @chmod($targetPath, 0644);
+            $assetPath = 'assets/uploads/icons/' . $filename;
+        }
+        if ($mimeType === '') {
+            $mimeType = match ($extension) {
+                'png' => 'image/png',
+                'jpg', 'jpeg' => 'image/jpeg',
+                'webp' => 'image/webp',
+                default => 'application/octet-stream',
+            };
+        }
     }
 
     $baseSlug = slugify($label !== '' ? $label : 'custom-icon');
@@ -653,21 +723,21 @@ function defaultSeedGroups(): array
 function defaultSeedLinks(): array
 {
     return [
-        ['Interne Seiten', 'GitLab', 'https://gitlab.nik0.internal', 'preset', 10],
-        ['Interne Seiten', 'Proxmox', 'https://vm.nik0.internal', 'preset', 20],
-        ['Interne Seiten', 'OpenClaw', 'https://openclaw.nik0.internal', 'preset', 30],
-        ['Interne Seiten', 'ChromeOpenClaw', 'https://chrome.nik0.internal', 'preset', 40],
-        ['Interne Seiten', 'Home Assistant', 'https://ha.nik0.internal/', 'preset', 50],
-        ['Interne Seiten', 'Synology DS920', 'https://synology.nik0.internal/', 'preset', 60],
-        ['Interne Seiten', 'FRITZ!Box', 'http://192.168.112.1', 'preset', 70],
-        ['Interne Seiten', 'Portainer', 'https://portainer.nik0.internal', 'preset', 80],
-        ['Interne Seiten', 'Buha', 'https://buha.nik0.internal', 'preset', 90],
-        ['Interne Seiten', 'BuhaDB', 'https://buhadb.nik0.internal', 'preset', 100],
-        ['Externe Seiten', 'Amazon', 'https://www.amazon.de', 'preset', 10],
-        ['Externe Seiten', 'Thingiverse', 'https://www.thingiverse.com', 'preset', 20],
-        ['Externe Seiten', 'GitHub', 'https://github.com', 'preset', 30],
-        ['Externe Seiten', 'ALL-INKL', 'https://kas.all-inkl.com/login', 'preset', 40],
-        ['Externe Seiten', 'Kindle', 'https://lesen.amazon.de/', 'preset', 50],
+        ['Interne Seiten', 'GitLab', 'https://gitlab.nik0.internal', 'assets/icons/gitlab.svg', 'preset', 10],
+        ['Interne Seiten', 'Proxmox', 'https://vm.nik0.internal', 'assets/icons/proxmox.svg', 'preset', 20],
+        ['Interne Seiten', 'OpenClaw', 'https://openclaw.nik0.internal', 'assets/icons/openclaw.svg', 'preset', 30],
+        ['Interne Seiten', 'ChromeOpenClaw', 'https://chrome.nik0.internal', 'assets/icons/chrome.svg', 'preset', 40],
+        ['Interne Seiten', 'Home Assistant', 'https://ha.nik0.internal/', 'assets/icons/homeassistant.svg', 'preset', 50],
+        ['Interne Seiten', 'Synology DS920', 'https://synology.nik0.internal/', 'assets/icons/synology.svg', 'preset', 60],
+        ['Interne Seiten', 'FRITZ!Box', 'http://192.168.112.1', 'assets/icons/fritzbox.svg', 'preset', 70],
+        ['Interne Seiten', 'Portainer', 'https://portainer.nik0.internal', 'assets/icons/docker.svg', 'preset', 80],
+        ['Interne Seiten', 'Buha', 'https://buha.nik0.internal', 'assets/icons/buha.svg', 'preset', 90],
+        ['Interne Seiten', 'BuhaDB', 'https://buhadb.nik0.internal', 'assets/icons/mariadb.svg', 'preset', 100],
+        ['Externe Seiten', 'Amazon', 'https://www.amazon.de', 'assets/icons/amazon-light.svg', 'preset', 10],
+        ['Externe Seiten', 'Thingiverse', 'https://www.thingiverse.com', 'assets/icons/thingiverse.svg', 'preset', 20],
+        ['Externe Seiten', 'GitHub', 'https://github.com', 'assets/icons/github-light.svg', 'preset', 30],
+        ['Externe Seiten', 'ALL-INKL', 'https://kas.all-inkl.com/login', 'assets/icons/all-inkl.svg', 'preset', 40],
+        ['Externe Seiten', 'Kindle', 'https://lesen.amazon.de/', 'assets/icons/kindle.svg', 'preset', 50],
     ];
 }
 
@@ -719,7 +789,7 @@ function ensureSeedGroupsAndLinksForProfile(PDO $pdo, int $userId, int $profileI
         }
     }
 
-    foreach (defaultSeedLinks() as [$groupTitle, $title, $url, $sourceType, $sortOrder]) {
+    foreach (defaultSeedLinks() as [$groupTitle, $title, $url, $sourcePath, $sourceType, $sortOrder]) {
         $groupStatement = $pdo->prepare(
             'SELECT id FROM link_groups WHERE profile_id = :profile_id AND title = :title LIMIT 1'
         );
@@ -728,6 +798,7 @@ function ensureSeedGroupsAndLinksForProfile(PDO $pdo, int $userId, int $profileI
             ':title' => $groupTitle,
         ]);
         $groupId = (int) $groupStatement->fetchColumn();
+        $iconVariantId = iconVariantIdBySourcePath($pdo, $sourcePath);
         if ($groupId <= 0) {
             continue;
         }
@@ -746,7 +817,7 @@ function ensureSeedGroupsAndLinksForProfile(PDO $pdo, int $userId, int $profileI
             ':group_id' => $groupId,
             ':title' => $title,
             ':url' => $url,
-            ':icon_variant_id' => null,
+            ':icon_variant_id' => $iconVariantId > 0 ? $iconVariantId : null,
             ':source_type' => $sourceType,
             ':sort_order' => $sortOrder,
         ]);
@@ -771,7 +842,7 @@ function migrateLegacyLinksSchema(PDO $pdo): void
 
     $pdo->exec('RENAME TABLE links TO links_legacy');
     ensureSchema($pdo);
-    removeDatabaseSvgIcons($pdo);
+    ensureIconLibrary($pdo);
 
     $groupMap = [];
     $insertGroup = $pdo->prepare(
@@ -800,11 +871,16 @@ function migrateLegacyLinksSchema(PDO $pdo): void
             $groupMap[$groupKey] = (int) $pdo->lastInsertId();
         }
 
+        $iconVariantId = iconVariantIdBySourcePath($pdo, (string) $row['icon_path']);
+        if ($iconVariantId <= 0) {
+            $iconVariantId = (int) $pdo->query('SELECT id FROM icon_variants ORDER BY id LIMIT 1')->fetchColumn();
+        }
+
         $insertLink->execute([
             ':group_id' => $groupMap[$groupKey],
             ':title' => $row['title'],
             ':url' => $row['url'],
-            ':icon_variant_id' => null,
+            ':icon_variant_id' => $iconVariantId > 0 ? $iconVariantId : null,
             ':source_type' => $ownerUserId === null ? 'preset' : 'manual',
             ':sort_order' => (int) $row['sort_order'],
         ]);
@@ -1654,6 +1730,6 @@ function deleteOwnedGroup(PDO $pdo, int $userId, int $profileId, int $groupId): 
 $pdo = db();
 ensureSchema($pdo);
 migrateLegacyLinksSchema($pdo);
-removeDatabaseSvgIcons($pdo);
+ensureIconLibrary($pdo);
 migrateGroupsToProfiles($pdo);
 migrateLegacyGlobalGroupsToOwner($pdo);

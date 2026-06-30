@@ -10,7 +10,7 @@ validate:startseite:
     - find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
     - test -f .env.example
     - test ! -f .env
-    - grep -q "Private Projektseite" impressum.php
+    - grep -q "Muster für eine private Projektseite" impressum.php
     - grep -q "Datenschutzerklärung" datenschutz.php
     - grep -q "PHP-Session-Cookie" datenschutz.php
     - >
@@ -25,7 +25,6 @@ validate:startseite:
         echo "Geheimer Datenbankwert im Repository gefunden.";
         exit 1;
       fi
-
 
 deploy:startseite:ssh:
   stage: deploy
@@ -57,6 +56,6 @@ smoke:startseite:
   before_script:
     - apk add --no-cache curl
   script:
-    - curl -fsS https://start.nik0.de/impressum.php | grep -q "Private Projektseite"
-    - curl -fsS https://start.nik0.de/datenschutz.php | grep -q "Datenschutzhinweise für diese private Projektseite"
+    - curl -fsS https://start.nik0.de/impressum.php | grep -q "Muster für eine private Projektseite"
+    - curl -fsS https://start.nik0.de/datenschutz.php | grep -q "Muster-Datenschutzhinweise"
     - curl -fsS https://start.nik0.de/datenschutz.php | grep -q "PHP-Session-Cookie"
