@@ -96,7 +96,7 @@ function renderLinkCard(
     $contentHtml = $contentParts === [] ? '' : '<div class="card-content">' . implode('', $contentParts) . '</div>';
 
     return sprintf(
-        '<div class="%s"%s>%s%s<a class="card" href="%s" draggable="false">%s%s</a></div>',
+        '<div class="%s"%s>%s%s<a class="card" href="%s" target="_blank" rel="noopener noreferrer" draggable="false">%s%s</a></div>',
         $shellClasses,
         $shellAttributes,
         $dragHandle,
@@ -209,13 +209,13 @@ function renderLinkModal(
             <label for="link_url">Adresse</label>
             <input id="link_url" name="url" type="url" placeholder="https://example.com" value="<?= htmlspecialchars((string) ($linkForm['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" required />
           </div>
-          <div class="builder-field">
+          <!--<div class="builder-field">
             <label for="source_type">Link-Typ</label>
             <select id="source_type" name="source_type">
               <option value="manual" <?= (($linkForm['source_type'] ?? 'manual') === 'manual') ? 'selected' : '' ?>>Manuell</option>
               <option value="preset" <?= (($linkForm['source_type'] ?? 'manual') === 'preset') ? 'selected' : '' ?>>Vordefiniert</option>
             </select>
-          </div>
+          </div> -->
           <div class="builder-field">
             <label>Icon</label>
             <div class="icon-choice-grid">
@@ -239,7 +239,7 @@ function renderLinkModal(
                   <input type="radio" name="icon_mode" value="upload" <?= (($linkForm['icon_mode'] ?? ($isEditMode ? 'library' : 'none')) === 'upload') ? 'checked' : '' ?> />
                   <span>Icon hochladen</span>
                 </span>
-                <input id="icon_svg" name="icon_svg" type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" />
+                <input id="icon_svg" name="icon_svg" type="file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg" />
               </label>
             </div>
           </div>
