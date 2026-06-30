@@ -380,7 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $preferences = fetchUserPreferences($pdo, $userId);
 $cardWidthPx = $preferences['card_width_px'];
 $groups = fetchDashboardData($pdo, $activeProfileId);
-$iconOptions = fetchIconOptions($pdo);
+$iconOptions = [];
 $reusableLinks = $authUser !== null ? fetchReusableLinks($pdo, $userId, $activeGroupId > 0 ? $activeGroupId : null) : [];
 $profiles = $authUser !== null ? fetchUserProfiles($pdo, $userId) : [];
 $profileCount = $authUser !== null ? countUserProfiles($pdo, $userId) : 0;

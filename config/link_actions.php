@@ -59,12 +59,12 @@ function fetchOwnedLinkForEditing(PDO $pdo, int $userId, int $profileId, int $li
             l.icon_variant_id,
             l.source_type,
             g.title AS group_title,
-            v.variant_label AS icon_label,
-            v.asset_type AS icon_asset_type,
-            v.svg_markup,
-            v.asset_path AS icon_asset_path,
-            v.asset_blob AS icon_asset_blob,
-            v.mime_type AS icon_mime_type
+            COALESCE(l.icon_label, v.variant_label) AS icon_label,
+            COALESCE(l.icon_asset_type, v.asset_type) AS icon_asset_type,
+            COALESCE(l.icon_svg_markup, v.svg_markup) AS svg_markup,
+            COALESCE(l.icon_asset_path, v.asset_path) AS icon_asset_path,
+            COALESCE(l.icon_asset_blob, v.asset_blob) AS icon_asset_blob,
+            COALESCE(l.icon_mime_type, v.mime_type) AS icon_mime_type
          FROM links l
          INNER JOIN link_groups g ON g.id = l.group_id
          LEFT JOIN icon_variants v ON v.id = l.icon_variant_id
@@ -194,7 +194,7 @@ function updateOwnedLink(
            AND g.profile_id = :profile_id'
     );
 
-    return $statement->execute([
+    $updated = $statement->execute([
         ':group_id' => $groupId,
         ':title' => $title,
         ':url' => $url,
@@ -204,6 +204,26 @@ function updateOwnedLink(
         ':owner_user_id' => $userId,
         ':profile_id' => $profileId,
     ]);
+
+    if ($updated && $iconVariantId !== null && $iconVariantId > 0) {
+        copyVariantIconToLink($pdo, $linkId);
+    }
+
+    if ($updated && ($iconVariantId === null || $iconVariantId <= 0)) {
+        $clearIcon = $pdo->prepare(
+            'UPDATE links
+             SET icon_label = NULL,
+                 icon_asset_type = NULL,
+                 icon_svg_markup = NULL,
+                 icon_asset_path = NULL,
+                 icon_asset_blob = NULL,
+                 icon_mime_type = NULL
+             WHERE id = :id'
+        );
+        $clearIcon->execute([':id' => $linkId]);
+    }
+
+    return $updated;
 }
 
 function deleteOwnedLink(PDO $pdo, int $userId, int $profileId, int $linkId): bool

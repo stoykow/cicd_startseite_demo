@@ -1,3 +1,5 @@
 .env
 config/local.php
 assets/icons/
+datenschutz.php
+impressum.php

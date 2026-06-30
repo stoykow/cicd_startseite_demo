@@ -27,10 +27,10 @@ jobs:
         run: |
           test -f .env.example
           test ! -f .env
-          grep -q "Impressum" impressum.php
-          grep -q "Datenschutz" datenschutz.php
-          grep -q "legal.css" impressum.php
-          grep -q "legal.css" datenschutz.php
+          grep -q "Impressum" impressum_example.php
+          grep -q "Datenschutz" datenschutz_example.php
+          grep -q "legal.css" impressum_example.php
+          grep -q "legal.css" datenschutz_example.php
 
       - name: Secret leak check
         run: |
@@ -84,6 +84,11 @@ jobs:
           ];
           file_put_contents("config/local.php", "<?php\nreturn " . var_export($config, true) . ";\n");
           '
+
+      - name: Create demo legal pages
+        run: |
+          cp impressum_example.php impressum.php
+          cp datenschutz_example.php datenschutz.php
 
       - name: Deploy via FTP, FTPS or SFTP
         env:

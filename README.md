@@ -8,7 +8,7 @@ Das Projekt dient gleichzeitig als reales Deployment-Projekt und als CI/CD-Unter
 
 - `index.php`: eigentliche Startseite
 - `login.php`: Anmeldung und Registrierung
-- `impressum.php` und `datenschutz.php`: öffentliche Pflichtseiten
+- `impressum_example.php` und `datenschutz_example.php`: Muster für die rechtlichen Seiten
 - `config/`: Konfiguration, Bootstrap, UI- und Aktionslogik
 - `assets/icons/`: lokale, private Icon-Dateien, nicht im Repository
 - `assets/uploads/icons/`: hochgeladene Icon-Dateien
@@ -60,7 +60,9 @@ Wichtige Variablen:
 
 Echte Geheimnisse gehören in GitLab CI/CD Variables, GitHub Secrets oder eine lokale `.env`, nicht ins Repository.
 
-Lokale SVG-Icons können in `assets/icons/` liegen. Der Ordner ist per `.gitignore` ausgeblendet und wird nicht ins Demo synchronisiert. Wenn lokal SVG-Dateien vorhanden sind, importiert `config/bootstrap.php` sie beim Start in die Datenbanktabelle `icon_variants`. In frisch geklonten öffentlichen Repos ist der Ordner leer; Teilnehmende müssen eigene Icons ergänzen oder Icons über die Oberfläche hochladen.
+Lokale SVG-Icons können in `assets/icons/` liegen. Der Ordner ist per `.gitignore` ausgeblendet und wird nicht ins Demo synchronisiert. Wenn lokal SVG-Dateien vorhanden sind, importiert `config/bootstrap.php` sie beim Start zunächst als Vorlagen und kopiert die Icon-Daten danach direkt in die jeweilige `links`-Zeile. In frisch geklonten öffentlichen Repos ist der Ordner leer; Teilnehmende müssen eigene Icons ergänzen oder Icons über die Oberfläche hochladen.
+
+`impressum.php` und `datenschutz.php` sind ebenfalls ignoriert. Im Repository liegen nur `impressum_example.php` und `datenschutz_example.php`. Für das GitHub-Demo erzeugt die Pipeline daraus temporär öffentliche Musterseiten.
 
 ## GitLab CI/CD
 
@@ -287,8 +289,8 @@ Dieser Test stellt sicher, dass eine Beispielkonfiguration vorhanden ist und kei
 ### Content-Smoke-Test
 
 ```bash
-grep -q "Impressum" impressum.php
-grep -q "Datenschutz" datenschutz.php
+grep -q "Impressum" impressum_example.php
+grep -q "Datenschutz" datenschutz_example.php
 ```
 
 Ein Smoke-Test ist ein schneller Grundtest. Er prüft nicht jede Detailfrage, sondern nur: Ist etwas offensichtlich kaputt?
@@ -337,7 +339,7 @@ GitHub:
 
 ## Rechtliche Seiten
 
-`impressum.php` und `datenschutz.php` enthalten bewusst nur Mustertexte mit Platzhaltern. Persönliche oder projektspezifische Angaben gehören nicht ins öffentliche Demo-Repository und müssen vor einer echten Veröffentlichung fachlich und rechtlich ersetzt werden.
+`impressum_example.php` und `datenschutz_example.php` enthalten bewusst nur Mustertexte mit Platzhaltern. Persönliche oder projektspezifische Angaben gehören nicht ins öffentliche Demo-Repository. Wer das Projekt klont, erstellt daraus eigene lokale Dateien `impressum.php` und `datenschutz.php`.
 
 ## Quellen und Hinweise
 

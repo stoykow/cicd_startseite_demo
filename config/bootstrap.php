@@ -171,6 +171,12 @@ function ensureSchema(PDO $pdo): void
             title VARCHAR(120) NOT NULL,
             url VARCHAR(255) NOT NULL,
             icon_variant_id INT NULL,
+            icon_label VARCHAR(120) NULL,
+            icon_asset_type VARCHAR(16) NULL,
+            icon_svg_markup LONGTEXT NULL,
+            icon_asset_path VARCHAR(255) NULL,
+            icon_asset_blob LONGBLOB NULL,
+            icon_mime_type VARCHAR(120) NULL,
             source_type ENUM("preset","manual") NOT NULL DEFAULT "manual",
             sort_order INT NOT NULL DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -185,6 +191,30 @@ function ensureSchema(PDO $pdo): void
     }
 
     $pdo->exec('ALTER TABLE links MODIFY COLUMN icon_variant_id INT NULL');
+
+    if (!tableHasColumn($pdo, 'links', 'icon_label')) {
+        $pdo->exec('ALTER TABLE links ADD COLUMN icon_label VARCHAR(120) NULL AFTER icon_variant_id');
+    }
+
+    if (!tableHasColumn($pdo, 'links', 'icon_asset_type')) {
+        $pdo->exec('ALTER TABLE links ADD COLUMN icon_asset_type VARCHAR(16) NULL AFTER icon_label');
+    }
+
+    if (!tableHasColumn($pdo, 'links', 'icon_svg_markup')) {
+        $pdo->exec('ALTER TABLE links ADD COLUMN icon_svg_markup LONGTEXT NULL AFTER icon_asset_type');
+    }
+
+    if (!tableHasColumn($pdo, 'links', 'icon_asset_path')) {
+        $pdo->exec('ALTER TABLE links ADD COLUMN icon_asset_path VARCHAR(255) NULL AFTER icon_svg_markup');
+    }
+
+    if (!tableHasColumn($pdo, 'links', 'icon_asset_blob')) {
+        $pdo->exec('ALTER TABLE links ADD COLUMN icon_asset_blob LONGBLOB NULL AFTER icon_asset_path');
+    }
+
+    if (!tableHasColumn($pdo, 'links', 'icon_mime_type')) {
+        $pdo->exec('ALTER TABLE links ADD COLUMN icon_mime_type VARCHAR(120) NULL AFTER icon_asset_blob');
+    }
 
     $pdo->exec(
         'CREATE TABLE IF NOT EXISTS dashboard_settings (
@@ -323,6 +353,39 @@ function iconVariantIdBySourcePath(PDO $pdo, string $sourcePath): int
     $statement = $pdo->prepare('SELECT id FROM icon_variants WHERE source_path = :source_path LIMIT 1');
     $statement->execute([':source_path' => $sourcePath]);
     return (int) $statement->fetchColumn();
+}
+
+function copyVariantIconToLink(PDO $pdo, int $linkId): void
+{
+    $statement = $pdo->prepare(
+        'UPDATE links l
+         INNER JOIN icon_variants v ON v.id = l.icon_variant_id
+         SET
+            l.icon_label = v.variant_label,
+            l.icon_asset_type = v.asset_type,
+            l.icon_svg_markup = v.svg_markup,
+            l.icon_asset_path = v.asset_path,
+            l.icon_asset_blob = v.asset_blob,
+            l.icon_mime_type = v.mime_type
+         WHERE l.id = :id'
+    );
+    $statement->execute([':id' => $linkId]);
+}
+
+function copyVariantIconsToLinks(PDO $pdo): void
+{
+    $pdo->exec(
+        'UPDATE links l
+         INNER JOIN icon_variants v ON v.id = l.icon_variant_id
+         SET
+            l.icon_label = v.variant_label,
+            l.icon_asset_type = v.asset_type,
+            l.icon_svg_markup = v.svg_markup,
+            l.icon_asset_path = v.asset_path,
+            l.icon_asset_blob = v.asset_blob,
+            l.icon_mime_type = v.mime_type
+         WHERE l.icon_variant_id IS NOT NULL'
+    );
 }
 
 function createUploadedIconVariant(PDO $pdo, string $label, array $upload, ?string &$error = null): int
@@ -706,6 +769,7 @@ function duplicateProfile(PDO $pdo, int $userId, int $profileId, ?string $newNam
                 ':source_type' => $link['source_type'],
                 ':sort_order' => $link['sort_order'],
             ]);
+            copyVariantIconToLink($pdo, (int) $pdo->lastInsertId());
         }
     }
 
@@ -821,6 +885,7 @@ function ensureSeedGroupsAndLinksForProfile(PDO $pdo, int $userId, int $profileI
             ':source_type' => $sourceType,
             ':sort_order' => $sortOrder,
         ]);
+        copyVariantIconToLink($pdo, (int) $pdo->lastInsertId());
     }
 }
 
@@ -884,6 +949,7 @@ function migrateLegacyLinksSchema(PDO $pdo): void
             ':source_type' => $ownerUserId === null ? 'preset' : 'manual',
             ':sort_order' => (int) $row['sort_order'],
         ]);
+        copyVariantIconToLink($pdo, (int) $pdo->lastInsertId());
     }
 }
 
@@ -967,6 +1033,7 @@ function migrateLegacyGlobalGroupsToOwner(PDO $pdo): void
                 ':source_type' => $link['source_type'],
                 ':sort_order' => $link['sort_order'],
             ]);
+            copyVariantIconToLink($pdo, (int) $pdo->lastInsertId());
         }
     }
 
@@ -1217,12 +1284,12 @@ function fetchDashboardData(PDO $pdo, ?int $profileId): array
                 l.source_type,
                 l.sort_order AS link_sort_order,
                 v.id AS icon_variant_id,
-                v.variant_label,
-                v.asset_type,
-                v.svg_markup,
-                v.asset_path,
-                v.asset_blob,
-                v.mime_type
+                COALESCE(l.icon_label, v.variant_label) AS variant_label,
+                COALESCE(l.icon_asset_type, v.asset_type) AS asset_type,
+                COALESCE(l.icon_svg_markup, v.svg_markup) AS svg_markup,
+                COALESCE(l.icon_asset_path, v.asset_path) AS asset_path,
+                COALESCE(l.icon_asset_blob, v.asset_blob) AS asset_blob,
+                COALESCE(l.icon_mime_type, v.mime_type) AS mime_type
              FROM link_groups g
              LEFT JOIN links l ON l.group_id = g.id
              LEFT JOIN icon_variants v ON v.id = l.icon_variant_id
@@ -1394,6 +1461,7 @@ function insertLinkIntoGroup(
         ':source_type' => in_array($sourceType, ['preset', 'manual'], true) ? $sourceType : 'manual',
         ':group_id_for_sort' => $groupId,
     ]);
+    copyVariantIconToLink($pdo, (int) $pdo->lastInsertId());
 }
 
 function fetchIconOptions(PDO $pdo): array
@@ -1731,5 +1799,6 @@ $pdo = db();
 ensureSchema($pdo);
 migrateLegacyLinksSchema($pdo);
 ensureIconLibrary($pdo);
+copyVariantIconsToLinks($pdo);
 migrateGroupsToProfiles($pdo);
 migrateLegacyGlobalGroupsToOwner($pdo);
