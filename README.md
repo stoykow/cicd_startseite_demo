@@ -64,6 +64,11 @@ Lokale SVG-Icons können in `assets/icons/` liegen. Der Ordner ist per `.gitigno
 
 `impressum.php` und `datenschutz.php` sind ebenfalls ignoriert. Im Repository liegen nur `impressum_example.php` und `datenschutz_example.php`. Für das GitHub-Demo erzeugt die Pipeline daraus temporär öffentliche Musterseiten.
 
+Für echte Deployments gibt es zwei Wege:
+
+- lokal eigene `impressum.php` und `datenschutz.php` anlegen und mit `scripts/deploy-legal-pages.ps1` direkt hochladen
+- in GitLab/GitHub geschützte Secrets/Variablen `LEGAL_IMPRESSUM_PHP` und `LEGAL_DATENSCHUTZ_PHP` setzen; die Pipeline erzeugt daraus beim Deploy die echten Dateien
+
 ## GitLab CI/CD
 
 Die produktive GitLab-Pipeline liegt in:
@@ -340,6 +345,12 @@ GitHub:
 ## Rechtliche Seiten
 
 `impressum_example.php` und `datenschutz_example.php` enthalten bewusst nur Mustertexte mit Platzhaltern. Persönliche oder projektspezifische Angaben gehören nicht ins öffentliche Demo-Repository. Wer das Projekt klont, erstellt daraus eigene lokale Dateien `impressum.php` und `datenschutz.php`.
+
+Lokaler Upload der echten ignorierten Dateien:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\deploy-legal-pages.ps1
+```
 
 ## Quellen und Hinweise
 

@@ -86,9 +86,17 @@ jobs:
           '
 
       - name: Create demo legal pages
+        env:
+          LEGAL_IMPRESSUM_PHP: ${{ secrets.LEGAL_IMPRESSUM_PHP }}
+          LEGAL_DATENSCHUTZ_PHP: ${{ secrets.LEGAL_DATENSCHUTZ_PHP }}
         run: |
-          cp impressum_example.php impressum.php
-          cp datenschutz_example.php datenschutz.php
+          if [ -n "${LEGAL_IMPRESSUM_PHP:-}" ] && [ -n "${LEGAL_DATENSCHUTZ_PHP:-}" ]; then
+            printf '%s' "$LEGAL_IMPRESSUM_PHP" > impressum.php
+            printf '%s' "$LEGAL_DATENSCHUTZ_PHP" > datenschutz.php
+          else
+            cp impressum_example.php impressum.php
+            cp datenschutz_example.php datenschutz.php
+          fi
 
       - name: Deploy via FTP, FTPS or SFTP
         env:

@@ -12,7 +12,7 @@ validate:startseite:
     - test ! -f .env
     - grep -q "Muster für eine private Projektseite" impressum_example.php
     - grep -q "Datenschutzerklärung" datenschutz_example.php
-    - grep -q "PHP-Session-Cookie" datenschutz.php
+    - grep -q "PHP-Session-Cookie" datenschutz_example.php
     - >
       if grep -R
       --exclude="README.md"
@@ -34,14 +34,20 @@ deploy:startseite:ssh:
   before_script:
     - apk add --no-cache openssh-client sshpass tar
   script:
+    - |
+      if [ -n "${LEGAL_IMPRESSUM_PHP:-}" ] && [ -n "${LEGAL_DATENSCHUTZ_PHP:-}" ]; then
+        printf '%s' "$LEGAL_IMPRESSUM_PHP" > impressum.php
+        printf '%s' "$LEGAL_DATENSCHUTZ_PHP" > datenschutz.php
+      else
+        cp impressum_example.php impressum.php
+        cp datenschutz_example.php datenschutz.php
+      fi
     - >
       tar
       --exclude='.git/'
       --exclude='.gitlab-ci.yml'
       --exclude='.env'
       --exclude='.env.example'
-      --exclude='impressum.php'
-      --exclude='datenschutz.php'
       --exclude='docker-compose.yml'
       -czf - .
       | SSHPASS="$SSH_PASSWORD" sshpass -e ssh
