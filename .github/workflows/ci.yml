@@ -48,6 +48,8 @@ jobs:
       STARTSEITE_DEPLOY_METHOD: ftps
       STARTSEITE_DEPLOY_PORT: '21'
       STARTSEITE_DEPLOY_PATH: /
+      STARTSEITE_DEPLOY_CONNECT_TIMEOUT: '30'
+      STARTSEITE_DEPLOY_TIMEOUT: '180'
       STARTSEITE_DB_HOST: localhost
     steps:
       - name: Checkout
@@ -105,6 +107,8 @@ jobs:
           DEPLOY_PORT: ${{ env.STARTSEITE_DEPLOY_PORT }}
           DEPLOY_USER: ${{ secrets.STARTSEITE_DEPLOY_USER }}
           DEPLOY_PATH: ${{ env.STARTSEITE_DEPLOY_PATH }}
+          DEPLOY_CONNECT_TIMEOUT: ${{ env.STARTSEITE_DEPLOY_CONNECT_TIMEOUT }}
+          DEPLOY_TIMEOUT: ${{ env.STARTSEITE_DEPLOY_TIMEOUT }}
           DEPLOY_PASSWORD: ${{ secrets.STARTSEITE_DEPLOY_PASSWORD }}
         run: |
           set -eu
@@ -114,6 +118,8 @@ jobs:
           USER="${DEPLOY_USER:?STARTSEITE_DEPLOY_USER fehlt}"
           PASSWORD="${DEPLOY_PASSWORD:?STARTSEITE_DEPLOY_PASSWORD fehlt}"
           TARGET_PATH="${DEPLOY_PATH:-/}"
+          CONNECT_TIMEOUT="${DEPLOY_CONNECT_TIMEOUT:-30}"
+          TIMEOUT="${DEPLOY_TIMEOUT:-180}"
 
           case "$METHOD" in
             ftp|ftps)
@@ -124,6 +130,9 @@ jobs:
               fi
 
               lftp -u "$USER","$PASSWORD" -p "$PORT" "$HOST" <<EOF
+          set net:connect-timeout $CONNECT_TIMEOUT
+          set net:timeout $TIMEOUT
+          set net:max-retries 1
           set ftp:ssl-force $SSL_FORCE
           set ftp:ssl-protect-data $SSL_FORCE
           set ssl:verify-certificate no
@@ -149,6 +158,9 @@ jobs:
                 -czf - . \
               | SSHPASS="$PASSWORD" sshpass -e ssh \
                 -o StrictHostKeyChecking=accept-new \
+                -o ConnectTimeout="$CONNECT_TIMEOUT" \
+                -o ServerAliveInterval=30 \
+                -o ServerAliveCountMax=4 \
                 -p "$PORT" \
                 "$USER@$HOST" \
                 "mkdir -p '$TARGET_PATH' && tar -xzf - -C '$TARGET_PATH'"
