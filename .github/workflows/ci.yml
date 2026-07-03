@@ -122,6 +122,17 @@ jobs:
           CONNECT_TIMEOUT="${DEPLOY_CONNECT_TIMEOUT:-30}"
           TIMEOUT="${DEPLOY_TIMEOUT:-180}"
 
+          check_tcp_port() {
+            host="$1"
+            port="$2"
+
+            if ! timeout "$CONNECT_TIMEOUT" bash -c '</dev/tcp/$1/$2' _ "$host" "$port"; then
+              echo "::error::Keine TCP-Verbindung zum Deploy-Host auf Port '$port' innerhalb von ${CONNECT_TIMEOUT}s möglich."
+              echo "::error::Prüfe Host, Port, Firewall/IP-Freigabe beim Hoster und ob die gewählte Methode zum Port passt."
+              exit 1
+            fi
+          }
+
           case "$METHOD" in
             ftp|ftps)
               PORT="${DEPLOY_PORT:-21}"
@@ -130,7 +141,13 @@ jobs:
                 SSL_FORCE="true"
               fi
 
-              lftp -u "$USER","$PASSWORD" -p "$PORT" "$HOST" <<EOF
+              echo "Deploy-Methode: $METHOD"
+              echo "Deploy-Port: $PORT"
+              echo "Verbindungs-Timeout: ${CONNECT_TIMEOUT}s"
+              echo "Upload-Timeout ohne Fortschritt: ${TIMEOUT}s"
+              check_tcp_port "$HOST" "$PORT"
+
+              if ! lftp -u "$USER","$PASSWORD" -p "$PORT" "$HOST" <<EOF
           set net:timeout $CONNECT_TIMEOUT
           set net:max-retries 1
           set xfer:timeout $TIMEOUT
@@ -146,10 +163,19 @@ jobs:
             ./ "$TARGET_PATH"
           bye
           EOF
+              then
+                echo "::error::FTP/FTPS-Deploy fehlgeschlagen. Bei 'max-retries exceeded' ist der Server unter Methode '$METHOD' auf Port '$PORT' aus dem GitHub-Runner nicht erreichbar oder blockiert den Zugriff."
+                echo "::error::Prüfe Host, Port, FTP/FTPS-Methode, Firewall/IP-Freigabe beim Hoster und die Zugangsdaten."
+                exit 1
+              fi
               ;;
 
             sftp)
               PORT="${DEPLOY_PORT:-22}"
+              echo "Deploy-Methode: $METHOD"
+              echo "Deploy-Port: $PORT"
+              echo "Verbindungs-Timeout: ${CONNECT_TIMEOUT}s"
+              check_tcp_port "$HOST" "$PORT"
               tar \
                 --exclude='.git/' \
                 --exclude='.github/' \
