@@ -101,6 +101,7 @@ jobs:
           fi
 
       - name: Deploy via FTP, FTPS or SFTP
+        timeout-minutes: 10
         env:
           DEPLOY_METHOD: ${{ env.STARTSEITE_DEPLOY_METHOD }}
           DEPLOY_HOST: ${{ vars.STARTSEITE_DEPLOY_HOST }}
@@ -130,9 +131,9 @@ jobs:
               fi
 
               lftp -u "$USER","$PASSWORD" -p "$PORT" "$HOST" <<EOF
-          set net:connect-timeout $CONNECT_TIMEOUT
-          set net:timeout $TIMEOUT
+          set net:timeout $CONNECT_TIMEOUT
           set net:max-retries 1
+          set xfer:timeout $TIMEOUT
           set ftp:ssl-force $SSL_FORCE
           set ftp:ssl-protect-data $SSL_FORCE
           set ssl:verify-certificate no
